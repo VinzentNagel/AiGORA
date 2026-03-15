@@ -1,0 +1,5 @@
+{
+  "name": "Multi-Agent Bias Assessment System",
+  "description": "A multi-agent system that analyzes educational text for structural bias using a dialectic approach.",
+  "requestFramePermissions": ["camera"]
+}
