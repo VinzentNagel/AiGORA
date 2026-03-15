@@ -2,7 +2,7 @@
 
 A multi-agent bias assessment system for analyzing educational text and identifying structural bias through a dialectical, dimension-based workflow.
 
-![AiGORA Screenshot](./PHOTO-2026-03-14-19-24-29-removebg-preview.png)
+![AiGORA Screenshot]([./PHOTO-2026-03-14-19-24-29-removebg-preview.png](https://github.com/VinzentNagel/AiGORA/blob/main/photos/PHOTO-2026-03-14-19-24-29-removebg-preview.png))
 
 ## Overview
 
