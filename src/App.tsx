@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, UploadCloud, BrainCircuit, ShieldAlert, Scale, ChevronRight, FileText, Activity, AlertTriangle, X, Info, RefreshCw, Moon, Sun, Layers, Loader2, FileSearch, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { GoogleGenAI, Type } from '@google/genai';
+import { generateContent, GenerateContentParams } from './services/aiProvider';
 import { create } from 'zustand';
 import { SemanticThermometer, DocumentMinimap, NightingaleRose } from './components/MetricsVisualizations';
 import { UnifiedInput } from './components/UnifiedInput';
@@ -12,6 +12,18 @@ import * as pdfjs from 'pdfjs-dist';
 
 // Initialize PDF.js worker
 pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
+// ==========================================
+// AI MODEL CONFIGURATION
+// Centralized block for easy LLM swapping
+// ==========================================
+const MODEL_CONFIG = {
+  visionExtraction: process.env.VITE_VISION_MODEL || "gemini-3-flash-preview",
+  detectorAgent: process.env.VITE_DETECTOR_MODEL || "meta/llama-2-7b-chat",
+  nuanceAgent: process.env.VITE_NUANCE_MODEL || "mistralai/mixtral-8x7b-instruct-v0.1",
+  orchestratorAgent: process.env.VITE_ORCHESTRATOR_MODEL || "meta/llama-2-70b-chat",
+};
+// ==========================================
 
 type AppState = 'INGEST' | 'PROCESSING' | 'ANALYSIS';
 
@@ -142,9 +154,8 @@ export default function App() {
   const handleImageTextExtraction = useCallback(async (base64: string, mimeType: string) => {
     setIsExtracting(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const response = await generateContent({
+        model: MODEL_CONFIG.visionExtraction,
         contents: [
           {
             inlineData: {
@@ -257,8 +268,6 @@ export default function App() {
     setError(null);
 
     try {
-      // Create a new GoogleGenAI instance right before making an API call
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
       // 1. Pre-segment the text via backend NLP (compromise/spaCy alternative)
       const parseRes = await fetch('/api/parse', {
@@ -296,8 +305,8 @@ export default function App() {
       const detectorDims = await fetchAgentDimensions('detector');
       const detectorSystemInstruction = `${detectorPrompt}${detectorDims ? `\n\n--- REFERENCE CRITERIA DO NOT DEVIATE ---\n${detectorDims}` : ''}`;
 
-      const detectorResponse = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const detectorResponse = await generateContent({
+        model: MODEL_CONFIG.detectorAgent,
         contents: segmentsJson,
         config: { systemInstruction: detectorSystemInstruction }
       });
@@ -310,11 +319,12 @@ export default function App() {
       const nuanceDims = await fetchAgentDimensions('nuance');
       const nuanceSystemInstruction = `${nuancePrompt}${nuanceDims ? `\n\n--- REFERENCE CRITERIA DO NOT DEVIATE ---\n${nuanceDims}` : ''}`;
 
-      const nuanceResponse = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const nuanceResponse = await generateContent({
+        model: MODEL_CONFIG.nuanceAgent,
         contents: `Original Segments:\n${segmentsJson}\n\nDetector Output:\n${detectorOutput}`,
         config: { systemInstruction: nuanceSystemInstruction }
       });
+
       const nuanceOutput = nuanceResponse.text;
 
       // --- STEP 3: ORCHESTRATOR ---
@@ -323,36 +333,38 @@ export default function App() {
       const orchPrompt = await orchPromptRes.text();
       const finalOrchPrompt = orchPrompt + `\n\nCRITICAL: For each finding, you MUST generate a 'review' (string) which is a deep pedagogical explanation of why this segment is biased or why the nuance specialist's defense was overruled/accepted. Also generate an 'impact_statement' (string) that synthesizes the detector and nuance logs into a single pedagogical sentence.\n\nBLINDNESS INSTRUCTION: Ignore all other biases. The 'dimension' field MUST exactly match one of the following provided dimensions: ${selectedDimensions.join(', ')}. Do NOT invent new dimensions or change the casing.`;
 
-      const orchResponse = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+      const orchResponse = await generateContent({
+        model: MODEL_CONFIG.orchestratorAgent,
         contents: `Original Segments:\n${segmentsJson}\n\nDetector Output:\n${detectorOutput}\n\nNuance Specialist Output:\n${nuanceOutput}`,
         config: {
           systemInstruction: finalOrchPrompt,
           responseMimeType: "application/json",
           responseSchema: {
-            type: Type.OBJECT,
+            type: "object",
             properties: {
               results: {
-                type: Type.ARRAY,
+                type: "array",
                 items: {
-                  type: Type.OBJECT,
+                  type: "object",
                   properties: {
                     dimension: { 
-                      type: Type.STRING,
-                      description: `Must be exactly one of: ${selectedDimensions.join(', ')}`,
-                      enum: selectedDimensions
+                      type: "string", 
+                      enum: selectedDimensions 
                     },
                     findings: {
-                      type: Type.ARRAY,
+                      type: "array",
                       items: {
-                        type: Type.OBJECT,
+                        type: "object",
                         properties: {
-                          segment_id: { type: Type.STRING },
-                          severity: { type: Type.INTEGER },
-                          detector_log: { type: Type.STRING },
-                          nuance_log: { type: Type.STRING },
-                          review: { type: Type.STRING },
-                          impact_statement: { type: Type.STRING, description: "Synthesize the detector and nuance logs into a single pedagogical sentence (e.g., 'The Detector found Severe Erasure here, and the Nuance Specialist agreed there is no pedagogical justification.')." }
+                          segment_id: { type: "string" },
+                          severity: { type: "integer" },
+                          detector_log: { type: "string" },
+                          nuance_log: { type: "string" },
+                          review: { type: "string" },
+                          impact_statement: { 
+                            type: "string", 
+                            description: "Synthesize the detector and nuance logs into a single pedagogical sentence (e.g., 'The Detector found Severe Erasure here, and the Nuance Specialist agreed there is no pedagogical justification.')." 
+                          }
                         },
                         required: ["segment_id", "severity", "detector_log", "nuance_log", "impact_statement", "review"]
                       }

@@ -7,9 +7,16 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-    },
+define: {
+  'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+  'process.env.NVIDIA_NIM_API_KEY': JSON.stringify(env.NVIDIA_NIM_API_KEY),
+  'process.env.USE_NVIDIA_NIM': JSON.stringify(env.USE_NVIDIA_NIM === 'true'),
+  'process.env.VITE_VISION_MODEL': JSON.stringify(env.VITE_VISION_MODEL),
+  'process.env.VITE_DETECTOR_MODEL': JSON.stringify(env.VITE_DETECTOR_MODEL),
+  'process.env.VITE_NUANCE_MODEL': JSON.stringify(env.VITE_NUANCE_MODEL),
+  'process.env.VITE_ORCHESTRATOR_MODEL': JSON.stringify(env.VITE_ORCHESTRATOR_MODEL),
+},
+
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

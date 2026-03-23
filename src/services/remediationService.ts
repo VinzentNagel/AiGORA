@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { generateContent } from './aiProvider';
 
 export interface RemediationResult {
   explanation: string;
@@ -11,9 +11,6 @@ export async function remediateSegment(
   detectorLog: string,
   severityLevel: number
 ): Promise<RemediationResult> {
-  // Create a new GoogleGenAI instance right before making an API call
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
-
   const systemInstruction = `You are a Pedagogical Rewriter. You receive a text segment that has been flagged for bias by an automated system.
 Task 1 (Deep Explanation): In one clear paragraph, explain how the text violates the provided dimension criteria. Do not use academic jargon; write for a tired teacher.
 Task 2 (Neutralization): Rewrite the original text to remove the bias.
@@ -37,17 +34,17 @@ Return a JSON object with:
 `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await generateContent({
       model: "gemini-3-flash-preview",
       contents: prompt,
       config: {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: {
-          type: Type.OBJECT,
+          type: "object",
           properties: {
-            explanation: { type: Type.STRING },
-            neutralized_text: { type: Type.STRING }
+            explanation: { type: "string" },
+            neutralized_text: { type: "string" }
           },
           required: ["explanation", "neutralized_text"]
         }
@@ -55,12 +52,12 @@ Return a JSON object with:
     });
 
     const text = response.text;
-    if (!text) throw new Error("Empty response from Gemini API");
+    if (!text) throw new Error("Empty response from API");
 
     const result = JSON.parse(text);
     return result as RemediationResult;
   } catch (error: any) {
-    console.error("Client-side remediation error:", error);
+    console.error("Remediation error:", error);
     throw error;
   }
 }
